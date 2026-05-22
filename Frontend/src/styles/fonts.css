@@ -1,0 +1,5 @@
+/* System font stack — avoids missing font file build errors */
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+}

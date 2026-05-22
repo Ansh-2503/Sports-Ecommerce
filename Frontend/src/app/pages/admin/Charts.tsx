@@ -12,6 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { AdminLayout } from "../../components/AdminLayout";
 import { api, AdminBarCharts } from "../../lib/api";
+import { ChartSkeleton, ErrorState } from "../../components/feedback/PageState";
 
 const months = [
   "January", "February", "March", "April", "May", "June",
@@ -21,24 +22,62 @@ const months = [
 export default function Charts() {
   const [charts, setCharts] = useState<AdminBarCharts | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    // Single, clean fetch — no duplicate call, correct loading state management
     api.getBarCharts()
-      .then(res => setCharts(res.charts))
-      .finally(() => setIsLoading(true)); // Loading state management
-      
-    // Fix loading state
-    setIsLoading(true);
-    api.getBarCharts()
-      .then(res => {
+      .then((res) => {
         setCharts(res.charts);
-        setIsLoading(false);
       })
-      .catch(() => setIsLoading(false));
+      .catch((err: any) => {
+        setError(err.message || "Failed to load chart data.");
+      })
+      .finally(() => {
+        setIsLoading(false); // Always stop loading, success or failure
+      });
   }, []);
 
-  if (isLoading) return <AdminLayout><div>Loading charts...</div></AdminLayout>;
-  if (!charts) return <AdminLayout><div>No chart data available.</div></AdminLayout>;
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Analytics Charts</h2>
+            <p className="text-muted-foreground">Annual growth and activity overview.</p>
+          </div>
+          <ChartSkeleton rows={2} />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Analytics Charts</h2>
+            <p className="text-muted-foreground">Annual growth and activity overview.</p>
+          </div>
+          <ErrorState
+            title="Failed to load charts"
+            message={error}
+            onRetry={() => {
+              setError("");
+              setIsLoading(true);
+              api.getBarCharts()
+                .then((res) => setCharts(res.charts))
+                .catch((err: any) => setError(err.message || "Failed to load chart data."))
+                .finally(() => setIsLoading(false));
+            }}
+          />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!charts) return null;
 
   // Prepare data for User & Products (Last 6 Months)
   const userProductData = charts.users.map((val, i) => ({
@@ -65,16 +104,16 @@ export default function Charts() {
           {/* Users & Products Bar Chart */}
           <Card className="border-0 shadow-md">
             <CardHeader>
-              <CardTitle>Top Activity (Users & Products - Last 6 Months)</CardTitle>
+              <CardTitle>Top Activity (Users & Products — Last 6 Months)</CardTitle>
             </CardHeader>
             <CardContent className="h-[400px] pt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={userProductData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    cursor={{fill: 'rgba(0,0,0,0.05)'}}
+                  <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
                   />
                   <Legend iconType="circle" />
@@ -95,9 +134,9 @@ export default function Charts() {
                 <BarChart data={orderData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    cursor={{fill: 'rgba(0,0,0,0.05)'}}
+                  <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
                   />
                   <Bar dataKey="orders" name="Orders" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />

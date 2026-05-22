@@ -12,6 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { AdminLayout } from "../../components/AdminLayout";
 import { api, AdminLineCharts, formatCurrency } from "../../lib/api";
+import { ChartSkeleton, ErrorState } from "../../components/feedback/PageState";
 
 const months = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -21,18 +22,59 @@ const months = [
 export default function Revenue() {
   const [charts, setCharts] = useState<AdminLineCharts | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     api.getLineCharts()
-      .then(res => {
+      .then((res) => {
         setCharts(res.charts);
-        setIsLoading(false);
       })
-      .catch(() => setIsLoading(false));
+      .catch((err: any) => {
+        setError(err.message || "Failed to load revenue data.");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
-  if (isLoading) return <AdminLayout><div>Loading revenue data...</div></AdminLayout>;
-  if (!charts) return <AdminLayout><div>No revenue data available.</div></AdminLayout>;
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Revenue Analytics</h2>
+            <p className="text-muted-foreground">Detailed financial trends from the last 12 months.</p>
+          </div>
+          {/* Summary card skeletons */}
+          <div className="grid gap-6 md:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl border-0 shadow-md bg-card p-6 space-y-3 animate-pulse">
+                <div className="h-3.5 w-36 rounded bg-secondary/50" />
+                <div className="h-8 w-28 rounded bg-secondary/70" />
+              </div>
+            ))}
+          </div>
+          <ChartSkeleton rows={2} />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Revenue Analytics</h2>
+            <p className="text-muted-foreground">Detailed financial trends from the last 12 months.</p>
+          </div>
+          <ErrorState title="Failed to load revenue data" message={error} onRetry={() => window.location.reload()} />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!charts) return null;
 
   // Prepare data for the 12 month chart
   const annualData = charts.revenue.map((val, i) => {

@@ -31,6 +31,7 @@ import {
 } from "../../components/ui/table";
 import { AdminLayout } from "../../components/AdminLayout";
 import { api, AdminDashboardStats, formatCurrency } from "../../lib/api";
+import { ChartSkeleton, ErrorState } from "../../components/feedback/PageState";
 
 export default function Overview() {
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
@@ -51,8 +52,49 @@ export default function Overview() {
       });
   }, []);
 
-  if (isLoading) return <AdminLayout><div>Loading overview...</div></AdminLayout>;
-  if (error) return <AdminLayout><div className="text-destructive">{error}</div></AdminLayout>;
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Overview</h2>
+            <p className="text-muted-foreground">Welcome back to your dashboard.</p>
+          </div>
+          {/* Stat card skeletons */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-xl border-0 shadow-md bg-card p-6 space-y-4 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="h-9 w-9 rounded-lg bg-secondary/70" />
+                  <div className="h-5 w-12 rounded-full bg-secondary/50" />
+                </div>
+                <div className="space-y-2 mt-4">
+                  <div className="h-3.5 w-24 rounded bg-secondary/50" />
+                  <div className="h-7 w-32 rounded bg-secondary/70" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <ChartSkeleton rows={1} />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Overview</h2>
+            <p className="text-muted-foreground">Welcome back to your dashboard.</p>
+          </div>
+          <ErrorState title="Failed to load dashboard" message={error} onRetry={() => window.location.reload()} />
+        </div>
+      </AdminLayout>
+    );
+  }
+
   if (!stats) return null;
 
   const cardData = [

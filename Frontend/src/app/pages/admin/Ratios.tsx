@@ -10,24 +10,75 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { AdminLayout } from "../../components/AdminLayout";
 import { api, AdminPieCharts } from "../../lib/api";
+import { ChartSkeleton, ErrorState } from "../../components/feedback/PageState";
 
 const COLORS = ["#3b82f6", "#10b981", "#fbbf24", "#f43f5e", "#8b5cf6", "#06b6d4"];
 
 export default function Ratios() {
   const [charts, setCharts] = useState<AdminPieCharts | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     api.getPieCharts()
-      .then(res => {
+      .then((res) => {
         setCharts(res.charts);
-        setIsLoading(false);
       })
-      .catch(() => setIsLoading(false));
+      .catch((err: any) => {
+        setError(err.message || "Failed to load ratio data.");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
-  if (isLoading) return <AdminLayout><div>Loading ratios...</div></AdminLayout>;
-  if (!charts) return <AdminLayout><div>No ratio data available.</div></AdminLayout>;
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Ratio Analytics</h2>
+            <p className="text-muted-foreground">Distribution and fulfillment insights.</p>
+          </div>
+          {/* Pie card grid skeletons */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border-0 shadow-md bg-card p-6 animate-pulse">
+                <div className="h-5 w-36 mx-auto rounded bg-secondary/60 mb-4" />
+                <div className="h-[200px] flex items-center justify-center">
+                  <div className="h-36 w-36 rounded-full bg-secondary/50" />
+                </div>
+                <div className="flex justify-center gap-4 mt-4">
+                  {[1,2,3].map((j) => (
+                    <div key={j} className="flex items-center gap-1.5">
+                      <div className="h-2.5 w-2.5 rounded-full bg-secondary/70" />
+                      <div className="h-3 w-12 rounded bg-secondary/50" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Ratio Analytics</h2>
+            <p className="text-muted-foreground">Distribution and fulfillment insights.</p>
+          </div>
+          <ErrorState title="Failed to load ratio data" message={error} onRetry={() => window.location.reload()} />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!charts) return null;
 
   // Prepare data for fulfillment
   const fulfillmentData = Object.entries(charts.orderFullfillment).map(([name, value]) => ({

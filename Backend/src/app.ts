@@ -42,7 +42,10 @@ if (process.env.NODE_ENV === "production") {
 connectDB(mongoURI);
 
 export const stripe = new Stripe(stripeKey);
-export const myCache = new NodeCache();
+// Cache expires after 30 minutes in production; shorter (5 min) in development
+// so stale admin-stats data is auto-refreshed without a server restart.
+const cacheTtlSeconds = process.env.NODE_ENV === "production" ? 1800 : 300;
+export const myCache = new NodeCache({ stdTTL: cacheTtlSeconds, checkperiod: 120 });
 
 const app = express();
 

@@ -88,3 +88,79 @@ export function EmptyState({
     </Card>
   );
 }
+
+/**
+ * Skeleton loader for chart pages — renders animated bar-chart-like
+ * placeholder blocks while data is being fetched from the server.
+ */
+export function ChartSkeleton({ rows = 2, className }: { rows?: number; className?: string }) {
+  return (
+    <div className={cn('space-y-8', className)} aria-hidden role="status">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Card key={i} className="border-0 shadow-md">
+          {/* Card header placeholder */}
+          <div className="px-6 pt-6 pb-3 space-y-2">
+            <div className="h-5 w-48 rounded bg-secondary/70 animate-pulse" />
+            <div className="h-3.5 w-32 rounded bg-secondary/50 animate-pulse" />
+          </div>
+          {/* Chart bars placeholder */}
+          <div className="px-6 pb-6 pt-3 h-[380px] flex flex-col gap-3">
+            {/* Y-axis + bars area */}
+            <div className="flex-1 flex items-end gap-3">
+              {Array.from({ length: 12 }).map((_, j) => (
+                <div
+                  key={j}
+                  className="flex-1 rounded-t bg-secondary/60 animate-pulse"
+                  style={{
+                    height: `${30 + Math.sin((i + j) * 1.3) * 25 + 20}%`,
+                    animationDelay: `${j * 60}ms`,
+                  }}
+                />
+              ))}
+            </div>
+            {/* X-axis placeholder */}
+            <div className="flex gap-3">
+              {Array.from({ length: 12 }).map((_, j) => (
+                <div key={j} className="flex-1 h-3 rounded bg-secondary/40 animate-pulse" style={{ animationDelay: `${j * 60}ms` }} />
+              ))}
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Skeleton loader for table-based admin pages (Customers, Transactions, Products).
+ */
+export function TableSkeleton({ rows = 8, cols = 6, className }: { rows?: number; cols?: number; className?: string }) {
+  return (
+    <Card className={cn('border-0 shadow-md', className)} aria-hidden role="status">
+      <CardContent className="p-0">
+        {/* Header row */}
+        <div className="flex gap-4 px-6 py-4 border-b">
+          {Array.from({ length: cols }).map((_, i) => (
+            <div key={i} className="h-4 flex-1 rounded bg-secondary/60 animate-pulse" />
+          ))}
+        </div>
+        {/* Data rows */}
+        {Array.from({ length: rows }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-4 px-6 py-4 border-b last:border-b-0"
+            style={{ animationDelay: `${i * 50}ms` }}
+          >
+            {Array.from({ length: cols }).map((_, j) => (
+              <div
+                key={j}
+                className="h-4 flex-1 rounded bg-secondary/50 animate-pulse"
+                style={{ animationDelay: `${(i + j) * 40}ms` }}
+              />
+            ))}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}

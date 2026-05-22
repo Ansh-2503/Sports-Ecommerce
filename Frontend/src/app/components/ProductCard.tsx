@@ -46,7 +46,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
 
   return (
     <>
-      <Card className="group overflow-hidden hover:shadow-2xl transition-all hover:-translate-y-1 border-0 shadow-md">
+      <Card className="group overflow-hidden hover:shadow-2xl transition-all hover:-translate-y-1 border-0 shadow-md h-full flex flex-col">
         <div className="relative aspect-square overflow-hidden bg-secondary/30">
         <img
           src={product.image}
@@ -80,9 +80,13 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
         </Button>
       </div>
 
-      <CardContent className="p-4">
-        <p className="text-xs text-muted-foreground mb-1">{product.category}</p>
-        <h3 className="mb-2 line-clamp-2">{product.name}</h3>
+      <CardContent className="p-4 flex-grow flex flex-col">
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">{product.category}</p>
+          <h3 className="mb-2 line-clamp-2">{product.name}</h3>
+        </div>
+
+        <div className="mt-auto">
 
         <div className="flex items-center gap-1 mb-2">
           <div className="flex">
@@ -111,6 +115,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
         <p className="mt-2 text-xs text-muted-foreground">
           {product.stock > 0 ? `${product.stock} in stock` : 'Currently unavailable'}
         </p>
+        </div>
       </CardContent>
 
       <CardFooter className="p-4 pt-0">

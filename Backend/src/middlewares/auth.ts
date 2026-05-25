@@ -41,12 +41,11 @@ export const authenticate = TryCatch(
       return next(new ErrorHandler(message, 401));
     }
 
-    const user = await User.findById(payload.id).select("role").lean();
-    if (!user) {
-      return next(new ErrorHandler("User no longer exists. Please log in again.", 401));
-    }
+    // Role is embedded in the access token — no DB round-trip needed.
+    // If somehow the claim is missing (old token), fall back to DB once.
+    const role: string = payload.role ?? (await User.findById(payload.id).select("role").lean().then((u) => u?.role ?? ""));
 
-    req.user = { id: payload.id as string, role: user.role as string };
+    req.user = { id: payload.id as string, role };
     next();
   }
 );

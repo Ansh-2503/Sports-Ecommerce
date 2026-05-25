@@ -64,7 +64,10 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 // Cookie parsing (required for httpOnly refresh-token cookie)
 app.use(cookieParser());
 
-app.use(morgan("dev"));
+// Only log in development — morgan adds per-request overhead in production
+if (process.env.NODE_ENV !== "production") {
+  app.use(morgan("dev"));
+}
 
 const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
   .split(",")
@@ -85,6 +88,16 @@ app.use(cors(corsOptions));
 
 app.get("/", (_req, res) => {
   res.send("API Working with /api/v1");
+});
+
+/**
+ * Keepalive ping — hit this with UptimeRobot (or similar) every 14 minutes
+ * to prevent Render's free tier from spinning down the dyno.
+ * Responds in <1ms — no DB, no auth, no allocations.
+ */
+app.get("/api/v1/ping", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).json({ ok: true, ts: Date.now() });
 });
 
 // ─── Routes ────────────────────────────────────────────────────────────────

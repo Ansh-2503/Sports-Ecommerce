@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import {
   ShoppingCart,
@@ -42,7 +42,10 @@ export function Header() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [localSearchTerm, setLocalSearchTerm] = useState('');
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileSearchTerm, setMobileSearchTerm] = useState('');
   const headerRef = useRef<HTMLElement>(null);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -57,6 +60,28 @@ export function Header() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [mobileMenuOpen]);
+
+  // Auto-focus mobile search input when it opens
+  useEffect(() => {
+    if (mobileSearchOpen) {
+      // Small delay so the CSS transition starts before focus
+      const id = setTimeout(() => mobileSearchInputRef.current?.focus(), 50);
+      return () => clearTimeout(id);
+    } else {
+      setMobileSearchTerm('');
+    }
+  }, [mobileSearchOpen]);
+
+  const handleMobileSearchSubmit = useCallback(() => {
+    const term = mobileSearchTerm.trim();
+    if (!term) return;
+    setMobileSearchOpen(false);
+    navigate(`/search?q=${encodeURIComponent(term)}`);
+  }, [mobileSearchTerm, navigate]);
+
+  const closeMobileSearch = useCallback(() => {
+    setMobileSearchOpen(false);
+  }, []);
 
   const currentPath = location.pathname;
 
@@ -175,12 +200,15 @@ export function Header() {
             <Button
               variant="ghost"
               size="icon"
-              title="Search"
-              aria-label="Search"
+              title={mobileSearchOpen ? 'Close search' : 'Search'}
+              aria-label={mobileSearchOpen ? 'Close search' : 'Open search'}
+              aria-expanded={mobileSearchOpen}
               className="md:hidden flex"
-              onClick={() => navigate('/search')}
+              onClick={() => setMobileSearchOpen((prev) => !prev)}
             >
-              <Search className="h-5 w-5" />
+              {mobileSearchOpen
+                ? <X className="h-5 w-5" />
+                : <Search className="h-5 w-5" />}
             </Button>
 
             {user ? (
@@ -241,6 +269,47 @@ export function Header() {
           </div>
         </div>
 
+        </div>
+
+        {/* ── Mobile search bar overlay ───────────────────────────────────────
+            Slides in below the main header row on small screens only.
+            Hidden on md+ because those screens already show the inline bar.
+        ──────────────────────────────────────────────────────────────────── */}
+        <div
+          className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+            mobileSearchOpen
+              ? 'max-h-20 opacity-100 py-2 border-t'
+              : 'max-h-0 opacity-0 py-0 border-transparent'
+          }`}
+          aria-hidden={!mobileSearchOpen}
+        >
+          <div className="relative flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <input
+                ref={mobileSearchInputRef}
+                type="search"
+                role="searchbox"
+                aria-label="Search products"
+                placeholder="Search products..."
+                value={mobileSearchTerm}
+                onChange={(e) => setMobileSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleMobileSearchSubmit();
+                  if (e.key === 'Escape') closeMobileSearch();
+                }}
+                className="w-full h-10 rounded-md bg-secondary pl-9 pr-4 text-sm outline-none ring-offset-background focus:ring-2 focus:ring-primary focus:ring-offset-0 border-0 placeholder:text-muted-foreground"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={handleMobileSearchSubmit}
+              disabled={!mobileSearchTerm.trim()}
+              className="h-10 px-4 shrink-0"
+            >
+              Search
+            </Button>
+          </div>
         </div>
 
         <div className={`lg:hidden overflow-hidden transition-all duration-300 ease-in-out ${mobileMenuOpen ? 'max-h-[500px] opacity-100 py-4 border-t' : 'max-h-0 opacity-0 py-0 border-transparent'}`}>

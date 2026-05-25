@@ -96,7 +96,8 @@ schema.virtual("age").get(function (this: IUser) {
 // Pre-save: hash password only when modified
 schema.pre("save", async function (this: IUser, next) {
   if (!this.isModified("password")) return next();
-  const salt = await bcrypt.genSalt(12);
+  // rounds=10 (~160ms) vs rounds=12 (~640ms) — 4× faster on Render's shared CPU, still secure
+  const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });

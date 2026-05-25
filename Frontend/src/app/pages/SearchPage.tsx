@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router';
 import { useApp } from '../context/AppContext';
 import { api, ApiProduct, getAssetUrl, formatCurrency } from '../lib/api';
 import { ProductCard, Product } from '../components/ProductCard';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Label } from '../components/ui/label';
-import { SlidersHorizontal, RotateCcw, Search as SearchIcon, Filter } from 'lucide-react';
+import { SlidersHorizontal, RotateCcw, Search as SearchIcon, Filter, Loader2 } from 'lucide-react';
 import { Separator } from '../components/ui/separator';
 import { Footer } from '../components/Footer';
 import { MobileDrawer } from '../components/ui/MobileDrawer';
@@ -24,16 +24,42 @@ function parseSortParam(raw: string | null): 'asc' | 'dsc' | 'none' {
   return 'none';
 }
 
+function mapApiProduct(p: ApiProduct): Product {
+  return {
+    id: p._id,
+    name: p.name,
+    price: p.price,
+    stock: p.stock,
+    category: p.category,
+    image: getAssetUrl(p.photo),
+    inStock: p.stock > 0,
+    rating: 4.6,
+    reviews: 0,
+    isNew: p.createdAt
+      ? Date.now() - new Date(p.createdAt).getTime() < 1000 * 60 * 60 * 24 * 14
+      : false,
+  };
+}
+
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
   
   const { categories, handleAddToCart } = useApp();
   
+  // ── Pagination & product state ──────────────────────────────────────────────
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPage, setTotalPage] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  // Separate initial-load from incremental-load so we don't flash the full spinner on scroll
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState('');
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+
+  // Sentinel div observed by IntersectionObserver to trigger next-page fetch
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   
   // Filters state derived from URL
   const category = (searchParams.get('category') || 'all').toLowerCase();
@@ -77,49 +103,90 @@ export default function SearchPage() {
     updateFilters('all', 'none', 100000, 0);
   };
 
-  // Fetch products
+  // Stable fetch helper – recreated only when filter deps change
+  const fetchPage = useCallback(
+    async (pageNum: number, signal: AbortSignal) => {
+      const data = await api.getProducts({
+        search: query,
+        category: category === 'all' ? undefined : category,
+        sort: sort === 'none' ? undefined : sort,
+        page: pageNum,
+        price: maxPrice < 100000 ? maxPrice : undefined,
+        minPrice: minPrice > 0 ? minPrice : undefined,
+      });
+      if (signal.aborted) return null;
+      return data;
+    },
+    [query, category, sort, maxPrice, minPrice]
+  );
+
+  // Effect 1: Reset & fetch page 1 whenever filters change
   useEffect(() => {
-    let ignore = false;
-    setIsLoading(true);
+    const controller = new AbortController();
+    setProducts([]);
+    setPage(1);
+    setTotalPage(1);
+    setTotalProducts(0);
     setError('');
-    
-    api.getProducts({ 
-      search: query, 
-      category: category === 'all' ? undefined : category, 
-      sort: sort === 'none' ? undefined : sort, 
-      page: 1,
-      price: maxPrice < 100000 ? maxPrice : undefined,
-      minPrice: minPrice > 0 ? minPrice : undefined,
-    })
+    setIsInitialLoading(true);
+
+    fetchPage(1, controller.signal)
       .then((data) => {
-        if (!ignore) {
-          setProducts(
-            data.products.map((p: ApiProduct): Product => ({
-              id: p._id,
-              name: p.name,
-              price: p.price,
-              stock: p.stock,
-              category: p.category,
-              image: getAssetUrl(p.photo),
-              inStock: p.stock > 0,
-              rating: 4.6,
-              reviews: 0,
-              isNew: p.createdAt
-                ? Date.now() - new Date(p.createdAt).getTime() < 1000 * 60 * 60 * 24 * 14
-                : false,
-            }))
-          );
-        }
+        if (!data || controller.signal.aborted) return;
+        setProducts(data.products.map(mapApiProduct));
+        setTotalPage(data.totalPage);
+        setTotalProducts(data.totalProducts);
+        setPage(2); // next page to load
       })
       .catch((err) => {
-        if (!ignore) setError(err instanceof Error ? err.message : 'Failed to fetch results');
+        if (controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : 'Failed to fetch results');
       })
       .finally(() => {
-        if (!ignore) setIsLoading(false);
+        if (!controller.signal.aborted) setIsInitialLoading(false);
       });
-      
-    return () => { ignore = true; };
+
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, category, sort, maxPrice, minPrice]);
+
+  // Effect 2: IntersectionObserver watches sentinel div to load subsequent pages
+  useEffect(() => {
+    if (isInitialLoading) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && page <= totalPage && !isFetchingMore) {
+          const controller = new AbortController();
+          setIsFetchingMore(true);
+
+          fetchPage(page, controller.signal)
+            .then((data) => {
+              if (!data || controller.signal.aborted) return;
+              setProducts((prev) => [...prev, ...data.products.map(mapApiProduct)]);
+              setTotalPage(data.totalPage);
+              setTotalProducts(data.totalProducts);
+              setPage((prev) => prev + 1);
+            })
+            .catch((err) => {
+              if (controller.signal.aborted) return;
+              setError(err instanceof Error ? err.message : 'Failed to load more products');
+            })
+            .finally(() => {
+              if (!controller.signal.aborted) setIsFetchingMore(false);
+            });
+        }
+      },
+      { rootMargin: '200px' } // pre-fetch 200px before sentinel enters viewport
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isInitialLoading, page, totalPage, isFetchingMore, fetchPage]);
+
+  const hasMore = page <= totalPage;
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-background">
@@ -138,7 +205,9 @@ export default function SearchPage() {
               ) : (
                 "Showing all products"
               )}
-              {isLoading ? '...' : ` — ${products.length} items found`}
+              {isInitialLoading
+                ? '...'
+                : ` — ${totalProducts} item${totalProducts !== 1 ? 's' : ''} found`}
             </p>
           </div>
           
@@ -378,7 +447,7 @@ export default function SearchPage() {
 
           {/* Results Grid */}
           <div className="w-full min-h-[600px]">
-            {isLoading ? (
+            {isInitialLoading ? (
               <div className="flex flex-col items-center justify-center h-[400px] space-y-4">
                 <div className="relative">
                    <div className="h-16 w-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
@@ -386,7 +455,7 @@ export default function SearchPage() {
                 </div>
                 <p className="text-muted-foreground font-medium animate-pulse">Finding the best gear for you...</p>
               </div>
-            ) : error ? (
+            ) : error && products.length === 0 ? (
               <Card className="border-destructive/20 bg-destructive/5 overflow-hidden">
                 <CardContent className="p-6 flex items-center gap-4 text-destructive">
                   <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
@@ -399,15 +468,49 @@ export default function SearchPage() {
                 </CardContent>
               </Card>
             ) : products.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8">
-                {products.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onAddToCart={handleAddToCart}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8">
+                  {products.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onAddToCart={handleAddToCart}
+                    />
+                  ))}
+                </div>
+
+                {/* Invisible sentinel — IntersectionObserver target */}
+                <div ref={sentinelRef} className="w-full h-1" aria-hidden="true" />
+
+                {/* Incremental spinner shown while fetching next page */}
+                {isFetchingMore && (
+                  <div className="flex items-center justify-center gap-3 py-10 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span className="text-sm font-medium">Loading more products…</span>
+                  </div>
+                )}
+
+                {/* End-of-results indicator */}
+                {!hasMore && !isFetchingMore && (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+                    <div className="h-px w-32 bg-primary/20 mb-2" />
+                    <p className="text-sm font-medium">
+                      You've seen all{' '}
+                      <span className="text-foreground font-bold">{totalProducts}</span> products
+                    </p>
+                  </div>
+                )}
+
+                {/* Inline error when a subsequent page fails */}
+                {error && (
+                  <div className="flex items-center justify-center gap-2 py-6 text-destructive text-sm">
+                    <span>{error}</span>
+                    <Button variant="outline" size="sm" onClick={() => { setError(''); setIsFetchingMore(false); }}>
+                      Retry
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <Card className="border-0 shadow-2xl overflow-hidden bg-secondary/20">
                 <CardContent className="p-16 flex flex-col items-center text-center">
@@ -416,10 +519,10 @@ export default function SearchPage() {
                   </div>
                   <h3 className="text-2xl font-bold mb-3">No matching products found</h3>
                   <p className="text-muted-foreground max-w-md mb-8">
-                    We couldn't find any products matching your search criteria. 
+                    We couldn't find any products matching your search criteria.
                     Try adjusting your filters or search for something else.
                   </p>
-                  <Button 
+                  <Button
                     onClick={handleClearFilters}
                     className="rounded-full px-8 h-12 text-base font-bold shadow-lg shadow-primary/20"
                   >

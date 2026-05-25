@@ -82,11 +82,13 @@ export const getAllCategories = TryCatch(async (req, res, next) => {
     myCache.set(key, JSON.stringify({ categories, categoryDetails }));
   }
 
-  return res.status(200).json({
-    success: true,
-    categories,
-    categoryDetails,
-  });
+  return res
+    .setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60")
+    .status(200).json({
+      success: true,
+      categories,
+      categoryDetails,
+    });
 });
 
 export const getAdminProducts = TryCatch(async (req, res, next) => {
@@ -226,11 +228,13 @@ export const getAllProducts = TryCatch(
 
     const totalPage = Math.ceil(filteredProductsCount / limit);
 
-    return res.status(200).json({
-      success: true,
-      products,
-      totalPage,
-      totalProducts: filteredProductsCount,
-    });
+    return res
+      .setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=30")
+      .status(200).json({
+        success: true,
+        products,
+        totalPage,
+        totalProducts: filteredProductsCount,
+      });
   }
 );

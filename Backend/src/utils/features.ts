@@ -8,12 +8,19 @@ export const connectDB = (uri: string) => {
   mongoose
     .connect(uri, {
       dbName: "Ecommerce",
+      // Keep the connection pool alive on Render / Atlas
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      socketTimeoutMS: 30000,
+      serverSelectionTimeoutMS: 10000,
+      heartbeatFrequencyMS: 10000,
     })
     .then((c) => {
       console.log(`DB Connected to ${c.connection.host}`);
     })
     .catch((e) => {
       console.error("MongoDB connection error:", e);
+      process.exit(1); // fail fast so Render restarts the dyno cleanly
     });
 };
 
@@ -103,21 +110,19 @@ export const getInventories = async ({
   categories: string[];
   productsCount: number;
 }) => {
-  const categoriesCountPromise = categories.map((category) =>
-    Product.countDocuments({ category })
-  );
+  // Single aggregation instead of N separate countDocuments calls
+  const agg = await Product.aggregate<{ _id: string; count: number }>([
+    { $match: { category: { $in: categories } } },
+    { $group: { _id: "$category", count: { $sum: 1 } } },
+  ]);
 
-  const categoriesCount = await Promise.all(categoriesCountPromise);
+  const countMap = new Map(agg.map((r) => [r._id, r.count]));
 
-  const categoryCount: Record<string, number>[] = [];
-
-  categories.forEach((category, i) => {
-    categoryCount.push({
-      [category]: Math.round((categoriesCount[i] / productsCount) * 100),
-    });
-  });
-
-  return categoryCount;
+  return categories.map((category) => ({
+    [category]: productsCount
+      ? Math.round(((countMap.get(category) ?? 0) / productsCount) * 100)
+      : 0,
+  })) as Record<string, number>[];
 };
 
 interface ChartDocument {

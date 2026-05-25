@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { toast } from 'react-toastify';
-import { ApiProduct, CategorySummary, ShippingAddress, UserProfile, Wishlist, api, getAssetUrl } from '../lib/api';
+import { ApiProduct, CategorySummary, ShippingAddress, UserProfile, Wishlist, api, getAssetUrl, API_BASE_URL } from '../lib/api';
 import { Product } from '../components/ProductCard';
 import { CartItem } from '../components/Cart';
 import { Dumbbell, Bike, Activity, Trophy, Watch, Target, CircleDot } from 'lucide-react';
@@ -99,6 +99,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isWishlistLoading, setIsWishlistLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
 
+  // ── Keepalive: wake the Render dyno before any real request fires ──────────
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/ping`, { method: 'GET' }).catch(() => {});
+  }, []);
+
   // Theme initialization
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
@@ -149,23 +154,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => { ignore = true; };
   }, []);
 
-  // Products fetch (debounced)
+  // Products fetch
   useEffect(() => {
     let ignore = false;
-    const timeout = window.setTimeout(() => {
-      setIsLoadingProducts(true);
-      setProductError('');
-      api.getProducts({ category: selectedCategory, page: 1 })
-        .then(({ products }) => { if (!ignore) setProducts(products.map(toProduct)); })
-        .catch((error) => {
-          if (!ignore) {
-            setProducts([]);
-            setProductError(error instanceof Error ? error.message : 'Products could not be loaded.');
-          }
-        })
-        .finally(() => { if (!ignore) setIsLoadingProducts(false); });
-    }, 250);
-    return () => { ignore = true; window.clearTimeout(timeout); };
+    setIsLoadingProducts(true);
+    setProductError('');
+    api.getProducts({ category: selectedCategory === 'all' ? undefined : selectedCategory, page: 1 })
+      .then(({ products }) => { if (!ignore) setProducts(products.map(toProduct)); })
+      .catch((error) => {
+        if (!ignore) {
+          setProducts([]);
+          setProductError(error instanceof Error ? error.message : 'Products could not be loaded.');
+        }
+      })
+      .finally(() => { if (!ignore) setIsLoadingProducts(false); });
+    return () => { ignore = true; };
   }, [selectedCategory]);
 
   const toggleTheme = useCallback(() => {

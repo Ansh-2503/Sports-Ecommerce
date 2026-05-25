@@ -63,7 +63,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
         <Button
           size="icon"
           variant="outline"
-          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all rounded-full shadow-md bg-background/80 backdrop-blur-sm border-border hover:bg-background"
+          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all rounded-full shadow-md bg-background/80 backdrop-blur-sm border-border hover:bg-background hover:text-foreground"
           onClick={handleWishlistClick}
         >
           <svg width="0" height="0" className="absolute">

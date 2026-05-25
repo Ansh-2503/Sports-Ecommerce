@@ -63,7 +63,8 @@ export const getSingleOrder = TryCatch(async (req, res, next) => {
 
   const requesterId = req.user?.id;
   const isAdmin = req.user?.role === "admin";
-  const orderOwnerId = String(order.user);
+  // order.user is populated, so it's an object with _id and name
+  const orderOwnerId = String((order.user as any)._id || order.user);
 
   if (!requesterId) {
     return next(new ErrorHandler("Please login to view this order", 401));
@@ -154,7 +155,7 @@ export const processOrder = TryCatch(async (req, res, next) => {
     product: false,
     order: true,
     admin: true,
-    userId: order.user as unknown as string,
+    userId: String(order.user),
     orderId: String(order._id),
   });
 
@@ -176,7 +177,7 @@ export const deleteOrder = TryCatch(async (req, res, next) => {
     product: false,
     order: true,
     admin: true,
-    userId: order.user as unknown as string,
+    userId: String(order.user),
     orderId: String(order._id),
   });
 
